@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>渋滞マップ＆ラジオ</title>
+    <title>リアルタイム交通ラジオ</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -20,113 +20,160 @@
         
         /* 地図の見た目設定 */
         #map {
-            height: 400px; /* 地図の高さ */
+            height: 45vh; /* 画面の半分の高さ */
             width: 100%;
-            margin-bottom: 20px;
             z-index: 1;
         }
 
-        .controls { padding: 10px; }
+        .controls { 
+            padding: 20px; 
+            background-color: white;
+            border-radius: 20px 20px 0 0;
+            margin-top: -20px;
+            position: relative;
+            z-index: 2;
+            min-height: 50vh;
+        }
         
         .status {
             margin: 10px auto;
-            padding: 10px;
-            background: white;
-            border-radius: 8px;
+            padding: 15px;
+            background: #e6f7ff;
+            border-radius: 10px;
             font-weight: bold;
             width: 90%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            line-height: 1.5;
         }
 
         button {
-            font-size: 1.1rem;
-            padding: 12px 24px;
-            margin: 5px;
+            font-size: 1.2rem;
+            padding: 15px 30px;
+            margin: 15px 5px;
             border: none;
             border-radius: 50px;
             cursor: pointer;
-            width: 45%;
+            width: 80%;
             color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         #btn-play { background-color: #007bff; }
         #btn-stop { background-color: #dc3545; display: none; }
+        
+        .timestamp {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>🚗 渋滞マップ＆ラジオ</h1>
+    <h1>🚗 リアルタイム交通ラジオ</h1>
     
     <div id="map"></div>
 
     <div class="controls">
-        <div class="status" id="status-text">停止中</div>
-        <button id="btn-play" onclick="startRadio()">再生</button>
+        <div class="status" id="status-text">再生ボタンを押して<br>情報を取得してください</div>
+        <div class="timestamp" id="data-time"></div>
+        <button id="btn-play" onclick="startRadio()">受信開始</button>
         <button id="btn-stop" onclick="stopRadio()">停止</button>
+        
+        <p style="font-size: 0.8rem; color: #666; margin-top: 20px;">
+            ※ 15〜20分おきに自動更新された<br>最新の渋滞情報を読み上げます。
+        </p>
     </div>
 
     <script>
-        // --- 1. 地図の設定 ---
-        // 東京駅周辺を中心(35.6812, 139.7671)に、ズームレベル11で表示
-        var map = L.map('map').setView([35.685, 139.752], 12);
+        // ==========================================
+        // 1. 地図の設定（見た目部分）
+        // ==========================================
+        
+        // 東京を中心(緯度35.68, 経度139.75)に表示
+        var map = L.map('map').setView([35.685, 139.752], 11);
 
-        // 地図のタイル（背景画像）を読み込む
+        // 地図タイル読み込み
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // --- 渋滞ラインを描く関数 ---
+        // 渋滞ラインを描く関数
         function drawTraffic(coords, color, description) {
-            // 線を引く
             L.polyline(coords, {color: color, weight: 6, opacity: 0.7}).addTo(map);
-            // クリックしたときに情報を出すポップアップ
             if(description) {
                  L.marker(coords[0]).addTo(map).bindPopup(description);
             }
         }
 
-        // ★★★ ここで渋滞箇所（赤い線）を描画しています ★★★
-        // 首都高 都心環状線(C1)っぽいルートを赤くする（サンプルデータ）
-        var c1Route = [
-            [35.69, 139.77], // 神田あたり
-            [35.68, 139.77], // 京橋あたり
-            [35.67, 139.76], // 銀座あたり
-            [35.66, 139.74], // 虎ノ門あたり
-            [35.69, 139.75]  // 竹橋あたり
-        ];
-        drawTraffic(c1Route, 'red', '都心環状線：事故渋滞 2km');
-
-        // 東名高速っぽいルートを緑（順調）にする
-        var tomeiRoute = [
-            [35.65, 139.69], // 渋谷・池尻
-            [35.62, 139.62], // 世田谷
-            [35.59, 139.56]  // 川崎方面
-        ];
-        drawTraffic(tomeiRoute, 'green', '3号渋谷線・東名：順調');
+        // ★サンプルの線（※ここはまだリアルタイム連動ではなく、固定表示です）
+        var c1Route = [[35.69, 139.77],[35.68, 139.77],[35.67, 139.76],[35.66, 139.74],[35.69, 139.75]];
+        drawTraffic(c1Route, 'red', '首都高：混雑エリア（目安）');
+        
+        var tomeiRoute = [[35.65, 139.69],[35.62, 139.62],[35.59, 139.56]];
+        drawTraffic(tomeiRoute, 'green', '東名・3号線方面（目安）');
 
 
-        // --- 2. 音声ラジオの設定（前回と同じ） ---
-        const trafficInfoList = [
-            "こちらは交通情報ラジオです。",
-            "地図上の赤いラインは、現在渋滞している箇所を表しています。",
-            "現在、首都高速都心環状線、銀座付近で事故のため渋滞しています。",
-            "いっぽう、3号渋谷線から東名高速方面は、緑色のラインで表示されており、順調に流れています。",
-            "画面の地図は、指で動かしたり拡大縮小ができます。"
-        ];
-
+        // ==========================================
+        // 2. 読み上げ＆データ取得機能
+        // ==========================================
+        
         let isPlaying = false;
-        let currentLine = 0;
         const synth = window.speechSynthesis;
+        let trafficData = [];
 
-        function startRadio() {
-            if (isPlaying) return;
-            isPlaying = true;
-            synth.cancel();
-            document.getElementById('btn-play').style.display = 'none';
-            document.getElementById('btn-stop').style.display = 'inline-block';
-            document.getElementById('status-text').innerText = "放送中...";
-            speakNextLine();
+        // データを取得する関数
+        async function fetchTrafficData() {
+            try {
+                document.getElementById('status-text').innerText = "最新情報を問い合わせ中...";
+                
+                // キャッシュ（古いデータ）を読み込まないよう、時刻パラメータをつける
+                const res = await fetch('traffic.json?' + new Date().getTime());
+                
+                if (res.ok) {
+                    trafficData = await res.json();
+                    document.getElementById('status-text').innerText = "最新データを受信しました。読み上げを開始します。";
+                    document.getElementById('data-time').innerText = "データ取得: " + new Date().toLocaleTimeString();
+                    return true;
+                } else {
+                    throw new Error("File not found");
+                }
+            } catch (e) {
+                console.error(e);
+                // データがまだない場合のエラー処理
+                trafficData = [
+                    "現在、交通情報を収集中です。",
+                    "まだデータが作成されていないようです。",
+                    "GitHub Actionsの実行履歴を確認してください。"
+                ];
+                document.getElementById('status-text').innerText = "準備中...";
+                return false;
+            }
         }
 
+        // 再生ボタン
+        async function startRadio() {
+            if (isPlaying) return;
+            
+            // まずデータを取ってくる
+            await fetchTrafficData();
+
+            isPlaying = true;
+            synth.cancel(); // リセット
+            
+            // ボタンの切り替え
+            document.getElementById('btn-play').style.display = 'none';
+            document.getElementById('btn-stop').style.display = 'inline-block';
+            
+            // 読み上げループ開始
+            speakAll(0);
+        }
+
+        // 停止ボタン
         function stopRadio() {
             isPlaying = false;
             synth.cancel();
@@ -135,19 +182,43 @@
             document.getElementById('status-text').innerText = "停止中";
         }
 
-        function speakNextLine() {
+        // 再帰的にリストを読み上げる関数
+        function speakAll(index) {
             if (!isPlaying) return;
-            const text = trafficInfoList[currentLine];
+
+            // 最後まで読んだら最初に戻る
+            if (index >= trafficData.length) {
+                index = 0;
+                // 1周したら少し休憩(3秒)
+                setTimeout(() => speakAll(0), 3000);
+                return;
+            }
+
+            const text = trafficData[index];
+            
+            // 画面の文字更新
+            document.getElementById('status-text').innerText = text;
+
+            // 読み上げ設定
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'ja-JP';
+            utterance.rate = 1.0; // 速度
+            
+            // 読み終わったら次へ
             utterance.onend = function() {
-                if (!isPlaying) return;
-                currentLine++;
-                if (currentLine >= trafficInfoList.length) currentLine = 0;
-                setTimeout(speakNextLine, 1000);
+                if(isPlaying) {
+                    speakAll(index + 1);
+                }
             };
+            
+            // エラーが出ても次へ進む
+            utterance.onerror = function() {
+                if(isPlaying) {
+                    setTimeout(() => speakAll(index + 1), 1000);
+                }
+            };
+
             synth.speak(utterance);
-            document.getElementById('status-text').innerText = text;
         }
     </script>
 </body>
