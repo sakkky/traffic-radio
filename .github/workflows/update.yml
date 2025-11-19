@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # 【重要】これがないとエラー128が出やすい
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -29,12 +31,19 @@ jobs:
 
       - name: Commit and push
         run: |
-          git config user.name "Traffic Bot"
-          git config user.email "bot@example.com"
-          # 最新の状態を取り込む（ここが魔法の呪文です）
-          git pull origin main --rebase
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           
           git add traffic.json
-          # 変更がないときはエラーにしない
-          git commit -m "Update traffic info" || exit 0
-          git push origin main
+          
+          # 変更があるか確認する
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          
+          git commit -m "Update traffic info"
+          
+          # 念のため最新を取り込んでから保存
+          git pull origin main --rebase
+          git push
