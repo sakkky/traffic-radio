@@ -66,3 +66,4 @@ def get_traffic_data():
 
 if __name__ == "__main__":
     get_traffic_data()
+　
