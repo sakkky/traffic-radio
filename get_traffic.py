@@ -1,88 +1,68 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import re
 import datetime
 
 # Yahoo!道路交通情報（関東・高速）
 URL = "https://roadway.yahoo.co.jp/traffic/area/4/highways"
 
 def get_traffic_data():
+    messages = []
+    
     try:
         # 1. サイトにアクセス
-        headers = {'User-Agent': 'Mozilla/5.0 (TrafficRadioApp/1.0)'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(URL, headers=headers)
         response.encoding = response.apparent_encoding
-        
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        traffic_messages = []
         
         # 2. 現在時刻を追加
         now = datetime.datetime.now().strftime('%H時%M分')
-        traffic_messages.append(f"{now}現在の、道路交通情報をお知らせします。")
+        messages.append(f"{now}現在の、道路交通情報をお知らせします。")
 
-        # 3. 渋滞情報を探す (Yahooの構造に合わせて解析)
-        # 注意: サイトの構造が変わると動かなくなる可能性があります
-        found_info = False
+        # 3. 情報を探す（ロジックを簡略化・強化）
+        # Yahooのページからテキストを抽出
+        found_something = False
         
-        # 「section」タグの中に路線ごとの情報があることが多い
-        sections = soup.find_all('div', class_='section')
+        # ページ内の主要なリスト要素をざっくり探す
+        # ターゲット道路：中央道, 関越道, 東名, 首都高, 東北道, 常磐道
+        target_roads = ['中央道', '関越道', '東名', '首都高', '東北道', '常磐道']
         
-        target_roads = ['中央道', '関越道', '東名', '首都高'] # 読み上げたい主要道路
+        # ページ全体のテキストからキーワードを含む行を探す作戦に変更
+        text_lines = soup.get_text('\n').split('\n')
         
-        for section in sections:
-            road_name_tag = section.find('h3')
-            if not road_name_tag:
-                continue
-                
-            road_name = road_name_tag.text.strip()
-            
-            # ターゲットの道路か確認
-            is_target = False
-            for t in target_roads:
-                if t in road_name:
-                    is_target = True
-                    break
-            if not is_target:
-                continue
+        for line in text_lines:
+            line = line.strip()
+            if not line: continue
 
-            # その道路の渋滞リストを取得
-            # Yahooは tr タグなどでリスト化されている場合がある
-            # ここでは簡易的にテキストを含む要素を探します
-            info_text = section.get_text().replace('\n', ' ').strip()
-            
-            # 「渋滞」などのキーワードが含まれるか
-            if '渋滞' in info_text or '事故' in info_text:
-                # 余計な空白を削除して読みやすくする処理
-                # 例: "中央道(上り) 小仏TN付近 渋滞20km" のようなパターンを抽出したい
-                # 簡易的な抽出ロジック
-                lines = section.find_all(['p', 'li', 'tr'])
-                for line in lines:
-                    text = line.get_text().strip()
-                    if ('渋滞' in text or '事故' in text) and len(text) > 5:
-                        # 読み上げ用に少し整形
-                        text = text.replace('TN', 'トンネル').replace('IC', 'インター')
-                        traffic_messages.append(f"{road_name}、{text}。")
-                        found_info = True
+            # 「渋滞」または「事故」が含まれ、かつターゲットの道路名が含まれる行を探す
+            if ('渋滞' in line or '事故' in line or '規制' in line):
+                for road in target_roads:
+                    if road in line:
+                        # 余計な記号を削除して読みやすくする
+                        clean_text = line.replace('>', '').replace('↓', '下り').replace('↑', '上り')
+                        clean_text = clean_text.replace('TN', 'トンネル').replace('IC', 'インター').replace('JCT', 'ジャンクション')
+                        
+                        # 同じ情報が重複しないようにチェック
+                        if clean_text not in messages:
+                            messages.append(clean_text + "。")
+                            found_something = True
+                        break # この行はもう処理したので次へ
 
-        if not found_info:
-            traffic_messages.append("現在、関東エリアの主要高速道路で、目立った渋滞情報は入っていません。順調に流れています。")
+        # 4. もし何も見つからなかった場合のメッセージ
+        if not found_something:
+            messages.append("現在、関東エリアの主要な高速道路で、事故や渋滞の情報は見当たりません。順調に流れています。")
         
-        traffic_messages.append("以上、交通情報をお伝えしました。")
-
-        # 4. JSONファイルとして保存
-        with open('traffic.json', 'w', encoding='utf-8') as f:
-            json.dump(traffic_messages, f, ensure_ascii=False, indent=2)
-            
-        print("Data saved successfully.")
+        messages.append("以上、交通情報をお伝えしました。")
 
     except Exception as e:
         print(f"Error: {e}")
-        # エラー時はダミーデータを入れる
-        dummy = ["情報の取得に失敗しました。しばらくしてから再度お試しください。"]
-        with open('traffic.json', 'w', encoding='utf-8') as f:
-            json.dump(dummy, f, ensure_ascii=False)
+        messages = ["情報の取得に失敗しました。", str(e)]
+
+    # 5. JSONファイルとして保存
+    with open('traffic.json', 'w', encoding='utf-8') as f:
+        json.dump(messages, f, ensure_ascii=False, indent=2)
+    print("Done.")
 
 if __name__ == "__main__":
     get_traffic_data()
