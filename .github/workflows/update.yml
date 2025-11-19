@@ -1,0 +1,36 @@
+name: Update Traffic Info
+
+on:
+  schedule:
+    - cron: '*/20 * * * *' # 20分ごとに実行
+  workflow_dispatch: # 手動実行ボタンも有効にする
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run scraper
+        run: python get_traffic.py
+
+      - name: Commit and push if changes
+        run: |
+          git config user.name "Traffic Bot"
+          git config user.email "bot@example.com"
+          git add traffic.json
+          git commit -m "Update traffic info" || exit 0
+          git push
