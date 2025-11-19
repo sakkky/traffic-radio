@@ -3,130 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>リアルタイム交通ラジオ</title>
-    
+    <title>高速道路ラジオ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <style>
-        body { font-family: sans-serif; text-align: center; margin: 0; background-color: #f4f4f4; }
-        #map { height: 40vh; width: 100%; z-index: 1; }
-        .controls { 
-            padding: 20px; background-color: white; border-radius: 20px 20px 0 0; 
-            margin-top: -20px; position: relative; z-index: 2; min-height: 60vh; 
+        body { font-family: sans-serif; text-align: center; margin: 0; background: #eee; }
+        #map { height: 40vh; width: 100%; }
+        .container { padding: 20px; background: white; border-radius: 20px 20px 0 0; margin-top: -20px; position: relative; z-index: 999; min-height: 60vh; }
+        #news-box { 
+            text-align: left; background: #f9f9f9; padding: 15px; border: 1px solid #ddd; 
+            height: 150px; overflow-y: scroll; margin-bottom: 20px; font-size: 0.9rem;
         }
-        
-        /* ニュースリストの表示エリア */
-        #news-list {
-            text-align: left;
-            background: #fff;
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin: 10px auto;
-            border-radius: 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            color: #333;
+        button { 
+            width: 100%; padding: 15px; font-size: 1.2rem; font-weight: bold; 
+            color: white; background: #007bff; border: none; border-radius: 50px; margin-bottom: 20px;
         }
-        .news-item { border-bottom: 1px solid #eee; padding: 5px 0; }
-        .news-item:last-child { border-bottom: none; }
-
-        button {
-            font-size: 1.2rem; padding: 15px; margin: 10px 0;
-            border: none; border-radius: 50px; cursor: pointer; width: 100%;
-            color: white; font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        #btn-play { background-color: #007bff; }
-        #btn-stop { background-color: #dc3545; display: none; }
-        .status-bar { font-weight: bold; color: #007bff; margin-bottom: 10px; }
+        .status { color: #007bff; font-weight: bold; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
-
-    <div class="controls">
-        <div class="status-bar" id="status-text">待機中</div>
-        
-        <div id="news-list">ここに交通情報が表示されます...</div>
-
-        <button id="btn-play" onclick="startRadio()">受信開始</button>
-        <button id="btn-stop" onclick="stopRadio()">停止</button>
+    <div class="container">
+        <div class="status" id="status">待機中</div>
+        <div id="news-box">ここにニュースが表示されます</div>
+        <button onclick="playRadio()" id="btn">受信開始</button>
     </div>
 
     <script>
-        // 1. 地図設定
-        var map = L.map('map').setView([35.685, 139.752], 10);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        // 地図
+        var map = L.map('map').setView([35.68, 139.75], 9);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // 2. 音声設定
         const synth = window.speechSynthesis;
-        let trafficData = [];
 
-        async function fetchTrafficData() {
-            document.getElementById('status-text').innerText = "データを取得中...";
-            try {
-                const res = await fetch('traffic.json?' + new Date().getTime());
-                if (res.ok) {
-                    trafficData = await res.json();
-                    displayNews(trafficData); // 画面に文字を出す
-                    document.getElementById('status-text').innerText = "データ取得完了";
-                    return true;
-                }
-            } catch (e) {
-                console.error(e);
-                trafficData = ["情報の取得に失敗しました。"];
-                displayNews(trafficData);
-            }
-            return false;
-        }
+        async function playRadio() {
+            const btn = document.getElementById('btn');
+            const status = document.getElementById('status');
+            const box = document.getElementById('news-box');
 
-        // 画面にニュースをリスト表示する関数
-        function displayNews(data) {
-            const list = document.getElementById('news-list');
-            list.innerHTML = ""; // クリア
-            data.forEach(line => {
-                const div = document.createElement('div');
-                div.className = 'news-item';
-                div.innerText = line;
-                list.appendChild(div);
-            });
-        }
-
-        async function startRadio() {
-            await fetchTrafficData();
-
-            // ボタン切り替え
-            document.getElementById('btn-play').style.display = 'none';
-            document.getElementById('btn-stop').style.display = 'inline-block';
-            document.getElementById('status-text').innerText = "再生中...";
-
-            // ★ここが修正点：全部つなげて一気に喋らせる（途切れ対策）
-            const fullText = trafficData.join("。 "); // 句点をつなぐ
-            const utterance = new SpeechSynthesisUtterance(fullText);
-            utterance.lang = 'ja-JP';
-            utterance.rate = 1.0;
-
-            // 読み終わったらボタンを戻す
-            utterance.onend = function() {
-                document.getElementById('status-text').innerText = "再生終了";
-                document.getElementById('btn-play').style.display = 'inline-block';
-                document.getElementById('btn-stop').style.display = 'none';
-            };
-
-            synth.cancel(); // おまじない
-            synth.speak(utterance);
-        }
-
-        function stopRadio() {
+            // ★ここが重要！ボタンを押した瞬間に「無音」を再生して、iPhoneの音声機能を起こす
             synth.cancel();
-            document.getElementById('btn-play').style.display = 'inline-block';
-            document.getElementById('btn-stop').style.display = 'none';
-            document.getElementById('status-text').innerText = "停止";
+            const wakeUp = new SpeechSynthesisUtterance('');
+            synth.speak(wakeUp);
+
+            btn.disabled = true;
+            btn.style.background = "#ccc";
+            status.innerText = "データを読み込んでいます...";
+
+            try {
+                // キャッシュ対策をしてデータを取得
+                const res = await fetch('traffic.json?' + Date.now());
+                if (!res.ok) throw new Error("データがありません");
+                
+                const data = await res.json();
+                
+                // 画面に表示
+                box.innerHTML = data.join('<hr>');
+                status.innerText = "再生中";
+
+                // 全部つなげて読む
+                const text = data.join("。");
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = 'ja-JP';
+                
+                utter.onend = () => {
+                    status.innerText = "再生終了";
+                    btn.disabled = false;
+                    btn.style.background = "#007bff";
+                };
+                
+                // データを読み終わったら再生開始
+                synth.speak(utter);
+
+            } catch (e) {
+                status.innerText = "エラー";
+                box.innerText = "情報の取得に失敗しました。Actionsが動いているか確認してください。";
+                btn.disabled = false;
+                btn.style.background = "#007bff";
+                // エラーメッセージを喋らせる
+                const errUtter = new SpeechSynthesisUtterance("情報の取得に失敗しました");
+                synth.speak(errUtter);
+            }
         }
     </script>
 </body>
