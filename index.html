@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプル交通ラジオ</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            font-weight: bold;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        button {
+            font-size: 1.2rem;
+            padding: 15px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 80%;
+            max-width: 300px;
+        }
+        #btn-play { background-color: #007bff; color: white; }
+        #btn-stop { background-color: #dc3545; color: white; display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>🚗 交通情報ラジオ</h1>
+    
+    <div class="status" id="status-text">停止中</div>
+
+    <button id="btn-play" onclick="startRadio()">再生スタート</button>
+    <button id="btn-stop" onclick="stopRadio()">停止</button>
+
+    <p style="font-size: 0.8rem; margin-top: 30px; color: #666;">
+        ※スマホの画面が消えると音声が止まる場合があります。<br>画面は点けたままにしてください。
+    </p>
+
+    <script>
+        // ここに読み上げたい情報をリストで入れます
+        // 将来的にはここを自動更新されるデータに置き換えます
+        const trafficInfoList = [
+            "こちらは、交通情報ラジオです。",
+            "現在、首都高速都心環状線、外回り、銀座付近で事故のため2キロの渋滞です。",
+            "東名高速道路、下り、海老名サービスエリア付近、交通量は多いですが流れています。",
+            "中央道、上り、小仏トンネル先頭に、断続的な渋滞が発生しています。",
+            "次の情報は、またすぐにお伝えします。",
+            "..." // 少し間を開けるためのダミー
+        ];
+
+        let isPlaying = false;
+        let currentLine = 0;
+        const synth = window.speechSynthesis;
+        let currentUtterance = null;
+
+        function startRadio() {
+            if (isPlaying) return;
+            isPlaying = true;
+            
+            // iOSなどで再生を安定させるためのおまじない（空の音声を一度再生）
+            synth.cancel();
+            
+            document.getElementById('btn-play').style.display = 'none';
+            document.getElementById('btn-stop').style.display = 'inline-block';
+            document.getElementById('status-text').innerText = "放送中...";
+            document.getElementById('status-text').style.backgroundColor = "#e6f7ff";
+
+            speakNextLine();
+        }
+
+        function stopRadio() {
+            isPlaying = false;
+            synth.cancel(); // 音声を強制停止
+            document.getElementById('btn-play').style.display = 'inline-block';
+            document.getElementById('btn-stop').style.display = 'none';
+            document.getElementById('status-text').innerText = "停止中";
+            document.getElementById('status-text').style.backgroundColor = "white";
+        }
+
+        function speakNextLine() {
+            if (!isPlaying) return;
+
+            const text = trafficInfoList[currentLine];
+            
+            // 読み上げ設定
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ja-JP';
+            utterance.rate = 1.0; // 速度 (0.1 ~ 10)
+            utterance.pitch = 1.0; // 高さ (0 ~ 2)
+
+            // 読み上げが終わったら次の行へ
+            utterance.onend = function() {
+                if (!isPlaying) return;
+                
+                currentLine++;
+                if (currentLine >= trafficInfoList.length) {
+                    currentLine = 0; // 最初に戻る（ループ）
+                }
+                // 少しだけ間隔をあけて次を呼ぶ
+                setTimeout(speakNextLine, 500);
+            };
+
+            // エラー対策（読み上げが止まってしまった場合など）
+            utterance.onerror = function(event) {
+                console.error("Speech error", event);
+                // エラーでも止まらず次へ進む
+                setTimeout(speakNextLine, 1000);
+            };
+
+            synth.speak(utterance);
+            document.getElementById('status-text').innerText = "読み上げ中: " + text;
+        }
+    </script>
+</body>
+</html>
